@@ -1,0 +1,701 @@
+---
+title: "Australian Fires"
+author: "Group 4"
+date: "9/26/2020"
+output: html_document
+---
+
+![](australian_fires.jpg)
+
+
+# EXECUTIVE SUMMARY
+
+Australians are some of the most resilient people on Earth. Having gone through difficult socio,economic disasters we have still made it and prospered with it. But everyone has a different coping mechanism to deal financial, mental and physical stress. Among various disasters, Australian Fires is one of them, which we face every year and it is becoming worse than normal. Australia is fighting one of its worst bushfire seasons, fuelled by record-breaking temperatures and months of severe drought. This Project makes an effort to analyse some of the factors which act as an fuel for Australian Fires. We will try to throw some light on journey of Bushfires from Year 1919 to 2020 in context of Climate change during this time period. 
+
+# INTRODUCTION
+
+We will be doing two types of analysis using this report :-
+    1. Descriptive Analysis 
+    2. Predictive Analysis 
+
+To do above analysis we are considering Tidytuesday Australian Fires Data
+      
+**Climate Data**: For climate data, temperature and rainfall was gathered from the Australian Bureau of Meterology (BoM). A number of weather stations were chosen, based on their proximity to major Australian cities such as Sydney, Perth, Brisbane, Canberra, and Adelaide. The South East region of Australia appears to be the most affected.
+
+ This includes 4 types of datasets Temperature , Rainfall, Major Fire Incidents, and Nasa Fires
+ 
+ **Temperature**: This dataset includes variables such as city_name, date, temperature, temp_type,site_name. It gives us the Temperature scale Variation across different cities in Australia from 1919-2019 . Since temperature plays an important role in Bushfire detection, this dataset gives us an important insight of the Areas which are most affected by Bushfires and also tells us about the ongoing trend of Bushfires. 
+ 
+ **Rainfall**: This dataset includes variables such as station_code, city_name, year, month, day, rainfall, period, quality, lat, long, station_name. It gives us the Rainfall Variation across different cities from 1967-2020. Rainfall plays an vital role in slowing down the rate of Bushfire. By the help of this dataset we can determine the yearly, monthly and city wise variation of Bushfire. We can check that about the occcurance of rainfall and how it has varied across various years.
+ 
+ **Major Fire Incidents**: This Datset gives us the Major Fire incidents that happened recently across Australia. It tells us the about the Locations where Bushfire is going on and the lat long parameters to determine the exact location.  It gives us an important data to show alerts for the regions which were recently suffering from Bushfire.
+ 
+ **Nasa Fires**: This dataset gives us an insight of Fires which happened in last 2 years(1919-2020) across Australia. It gives us some important variables like latitude, longitude, brightness, confidence, frp, time. With the help of these variables we can check intensity of fire in various areas across Australia in last 2 years.  We can mapify the areas which are fire proned and can relate this data to our Rainfall and Temperature dataset which also indicates us Fire affected cities of Australia.
+ 
+ In this report  using the above datasets we will try to answer two Major Questions
+
+**DESCRIPTIVE ANALYSIS**
+
+**Is climate change to blame for Australia’s bushfires ?** 
+
++ What is the Temperature pattern of Australia in different Years? 
++ What is the Rainfall pattern of Australia in different Years? 
++ Which is the Variation in monthly Temperature in different Years?
++ How can we say that Climate change in last decade(2009-2019) has highly impacted Bushfires as compared to years from 1919-2009. ?
++ Which Regions are more prone to Fire? 
++ Where are the major fire incidents happening in Australia currently? 
++ What are the Australian Fire Boundaries?
+       
+**Predictive Analysis**
+
+**Why Australia is on Fire ? **
+
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(tidyverse)
+library(ggplot2)
+library(maps)
+library(lubridate)
+library(mapview)
+library(sf)
+library(scales)
+library(RColorBrewer)
+library(viridis)
+library(tidymodels)
+
+
+```
+
+# Datasets - Australian fires
+
+```{r}
+
+rainfall <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-07/rainfall.csv')
+
+temperature <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-07/temperature.csv')
+
+anz_nasa_fire <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-07/MODIS_C6_Australia_and_New_Zealand_7d.csv')
+
+```
+
+### Data Cleanup
+
+Here, we have done little bit of editing and cleaning of data to work smoothly!!!
+
+
+```{r}
+
+temperature <- temperature %>% 
+  mutate(year = as.numeric(format(date, "%Y",)),
+         month = as.numeric(format(date, "%m")))
+
+    
+temperature$city_name = toupper(temperature$city_name)
+
+rainfall$city_name = toupper(rainfall$city_name)
+
+anz_nasa_fire <- anz_nasa_fire %>% 
+  mutate(year = as.numeric(format(acq_date, "%Y",)),
+         month = as.numeric(format(acq_date, "%m")))
+
+```
+
+
+# DESCRIPTIVE ANALYSIS
+
+
+## INSIGHTS
+
+### 1. What is the Temperature pattern of Australia in different Years?
+
+The temperature pattern of Australia from many years has been changing at a regular pace. Some cities are termed as coldest and some are hottest. While there are some those remain in between both the categories. The below graph has shown us the temperature range of each city:
+
+```{r}
+
+temp_century <- temperature %>%
+  mutate(temperature, year_month = format(date, "%Y-%m"),
+         year = as.numeric(format(date, "%Y"))) %>%
+  mutate(city_name = str_to_title(city_name))%>%
+  filter(temp_type == "max") %>%
+  filter(year >= 1919) %>%
+  group_by(year, city_name)%>%
+  summarise(temperature = mean(temperature, na.rm = TRUE),.groups='drop')
+
+ggplot(temp_century, aes(x=city_name, y=temperature))+
+  stat_boxplot(geom = 'errorbar')+
+  geom_boxplot(outlier.shape = NA)+
+  geom_jitter(aes(color = temperature), position = position_jitter(width = 0.2))+
+  scale_color_gradient2(low = "blue", mid = "red", high = "black", midpoint = mean(temp_century$temperature, na.rm = TRUE), name="temp")+
+  ggtitle("Temperature Distribution across Australia from Year 1919 -2019")
+
+```
+
+The points on the box plot represent "temperature scale", which shows the variation in mean temperature in Australian cities from Year 1919 to 2019. From the graph we can observe that how the mean temperature for each of the cities has varied. 
+
+
+
+#### Let's have a look at temperature variation in each city from year 1919 - 2019
+
+After analysing temperature range, let's analyse temperature variation in each city individually
+
+```{r}
+
+ggplot(temp_century, aes(fill=city_name, x=year, y = temperature, color=city_name))+
+  geom_line()+
+  facet_wrap(~city_name, nrow = 3)+
+  scale_x_continuous(name = "Year", breaks = seq(1919, 2019, 20))+
+  scale_y_continuous(name="Max Temp in celsius", breaks=seq(14, 30, 2))+
+  ggtitle("Temperature Variation in each city from 1919 - 2019")
+
+```
+
+The line chart displays a stark transformation in temperature over the past century across Australia. It shows the anomaly of temperature for each calendar year from 1919 to 2019 in different cities. We can observe that there is a spontaneous rise in temperature for each city from 2010 to 2019. On the other hand, if we see it from 1919 to 2010, there is no much variation.
+
+On visualizing the temperature pattern from 2 graphs, we can say that average Australia’s temperature lies between 17.5⁰C - 27⁰C and it is rising from last few years. The lowest average Temperature cities being Melbourne, Canberra and Port where average Temperature varies between 17.5⁰C - 21⁰ C. On the other hand, Sydney, Perth and Brisbane has high average temperature varying from 21⁰C - 27⁰C.
+
+
+### 2. What is the Rainfall pattern of Australia in different Years
+
+The rainfall in Australia is playing a major role in changing the climate. Some of the cities receive maximum rainfall while some cities receive least rainfall. Below graph shows the rainfall record in mm in each city:
+
+
+```{r}
+
+# Average rainfall from year 1919 - 2019
+
+rain_max <- rainfall %>%
+  group_by(year, city_name)%>%
+  summarize(mean_rain = mean(rainfall, na.rm=TRUE), .groups ='drop')%>%
+  arrange(desc(mean_rain))%>%
+  filter(year >=1919)
+
+ggplot(rain_max, aes(fill = city_name, x=year, y= mean_rain, color= city_name))+
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(name = "Year", breaks = seq(1919, 2019, 20))+
+  scale_y_continuous(name="Max rain in mm", breaks=seq(1, 8, 1))+
+  facet_wrap(~city_name)+
+  ggtitle("Average Rainfall across cities from 1919 - 2019")
+
+```
+
+
+The above graph represents the variation in average rainfall across different cities of Australia during 1919-2019 interval. It can be observed that Rainfall pattern in Adelaide and Melbourne shows no much variation whereas in cities like Brisbane, Sydney and Perth shows a lot of variation in average rainfall. When we move forward towards year 2010 to 2019, it can be observed that  there is a downward trend in amount of average rainfall in these cities. Also 2019 can be observed as the most dry year.
+
+
+#### Let's have a look at rainfall Occurrence Proportion across different cities in 1919 - 2019
+
+```{r}
+
+ggplot(rain_max, aes(x = mean_rain, fill = city_name, colour = city_name)) +
+  geom_density(alpha = 0.1)+
+  ggtitle ("Rainfall distribution across cities from 1919 to 2020") +
+  xlab("Average rainfall (in mm)") +  
+  ylab("Occurrence")
+
+```
+
+
+
+The above graph gives us an idea about the Density of amount of rainfall across Australia from year 1919-2019. It can be observed from the graph that the amount of rainfall in Adelaide has 2.5 mm of rainfall with very high density of occurrence at 1.5 compared to other cities. Melbourne, Canberra and Perth received good rainfall with high occurrence of more than 1 for rainfall between 1.5 mm to 2mm.
+
+### **Conclusion**
+
+It can be seen that Sydney and Brisbane has received less rainfall and with very low density and hence can be considered as dry cities compared to other cities.
+
+### 3. Which is the Variation in monthly Temperature in different Years?
+
+
+```{r}
+
+ggplot(temperature, aes(x=year, y=month, fill=temperature))+
+  geom_tile(color="white", size=0.1)+
+  scale_x_continuous(name = "Years", breaks=seq(1919, 2020, 10))+
+  scale_y_continuous(name = "Month", breaks=seq(1, 12, 1))+
+  scale_fill_viridis(name="Difference from \nAverage in °C", option = "inferno")+
+  ggtitle("Monthly Variation in Australia\'s Temperature Since 1919")
+
+
+```
+
+The above graph tells us about the variation in monthly temperature of Australia from 1919-2019. After observation it can bee seen that, in the months from October to March , the temperature remains high. But this high temperature is further increasing which can depicted after analysing the statistics of this graph. 
+Let’s Consider the Month of December, we can conclude from above scale that the average temperature was approximately 15-20⁰C  in 1919, which has increased to approximately 21-25 ⁰C  in 2010. Now, if we compare the temperature of 2019 with 2010 for December, we see that it has increased to approximately 25-30 ⁰C.
+
+### **Conclusion**
+
+From the above statistics, we can conclude that average temperature rise around 5 degree celsius from 2010-2019, is at very high rate and within less time span of just 9 years. While if we see 1st Case it took about 90 years for an approximate rise 5 degree celsius from 1919-2010.
+
+
+### How can we say that Climate change in last decade(2009-2019) has highly impacted Bushfires as compared to years from 1919-2009. ?
+
+#### lets analyse the change in temperature in last decade (2009-2019) and 1919-2009
+```{r}
+# graph showing change in temp in last decade
+
+temp_decade <- temperature %>%
+  filter(year >=2009)%>%
+  group_by(year, city_name) %>%
+  summarise(avg_temp = mean(temperature, na.rm = TRUE), .groups ='drop')
+
+
+temp_decade %>%
+ggplot(aes(year, avg_temp, color=city_name))+
+  geom_line()+
+  scale_x_continuous(name = "Years", breaks=seq(2009, 2019, 1))
+
+# Graph showing temp variation in 1919 - 2009
+
+temp_new <-temperature %>%
+  filter(year >=1919, year <= 2010)%>%
+  group_by(year, city_name) %>%
+  summarise(avg_temp = mean(temperature, na.rm = TRUE), .groups ='drop')
+
+temp_new %>%
+  ggplot(aes(year, avg_temp, color=city_name))+
+  geom_line()+
+  scale_x_continuous(name = "Years", breaks=seq(1919, 2010, 10))
+
+
+```
+
+### **Conclusion**
+
+From above graphs, we can see that, in time frame of year 1919 2009, there is less variation in the average temperature of different cities for ex: in 1919 average temperature in Sydney was 18 ⁰C ,which increased to 18.5 ⁰C in 2009. So the variation is only .5 ⁰C.
+Now if we consider the time frame  from 2009 – 2019, we can see a lot of variations in the graph. Let’s reconsider Sydney, we can see that it was around 18.6 ⁰C in 2009, which increased to 21.6 ⁰C in 2019. The variation is around 3 ⁰C which is 60% more rise as compared to 2009.
+A very sharp rise can also be observed from 2018 to 2019.
+
+#### lets analyse the change in rainfall in last decade (2009-2019) and 1919-2009
+```{r}
+# graph showing change in rainfall in last decade
+
+rain_decade <- rainfall %>%
+  filter(year >=2009)%>%
+  group_by(year, city_name) %>%
+  summarise(avg_rain = mean(rainfall, na.rm = TRUE), .groups='drop')
+
+rain_decade %>%
+ggplot(aes(year, avg_rain, color=city_name))+
+  geom_line()+
+  scale_x_continuous(name = "Years", breaks=seq(2009, 2019, 1))
+
+# Graph showing temp variation in 1919 - 2009
+
+rain_new <-rainfall %>%
+  filter(year >=1919, year <= 2010)%>%
+  group_by(year, city_name) %>%
+  summarise(avg_rain = mean(rainfall, na.rm = TRUE), .groups='drop')
+
+rain_new %>%
+  ggplot(aes(year, avg_rain, color=city_name))+
+  geom_line()+
+  scale_x_continuous(name = "Years", breaks=seq(1919, 2010, 10))
+
+
+```
+
+### **Conclusion**
+
+From above graphs, we can see that, in time frame of year 1919 2009, there is less variation in the average rainfall of different cities for ex: in 1919 average rainfall in Adelaide was 1.7mm ,which almost remained same to around 1.6-1.7mm in 2009. So there is little or no much variation in average rainfall during this time.
+Now if we consider the time frame  from 2009 – 2019, we can see a lot of variations in the graph. We can see that in Adelaide it was around 1.6 mm in 2009, which decreased to 1.1 mm in 2019. The variation is around .5mm which is 50% more rise as compared to 2009.
+
+
+### Which cities are more affected by fire in last few years ?
+
+```{r}
+
+city_max_rainfall <- c("BRISBANE", "SYDNEY", "PERTH")
+
+most_affected_areas <- rain_decade %>%
+  filter(city_name %in% city_max_rainfall)
+
+most_affected_areas %>%
+  filter(year >=2016 , year < 2020) %>%
+  ggplot(aes(x=year, y=avg_rain, fill=city_name))+
+  geom_bar(position="dodge", stat = "identity")+
+  ggtitle("Cities with decreasing rainfall distribution")
+
+
+```
+
+```{r}
+
+city_max_temp <- c("BRISBANE", "SYDNEY", "PERTH")
+
+  most_affected_areas_temp <- temp_decade %>%
+  filter(city_name %in% city_max_temp)
+
+most_affected_areas_temp %>%
+  filter(year >=2016 , year < 2020) %>%
+  ggplot(aes(x=year, y=avg_temp, fill=city_name))+
+  geom_bar(position="dodge", stat = "identity")+
+  ggtitle("Cities with increasing temperature")
+
+
+```
+
+#### Cities in fire zone
+
+```{r}
+
+rain_decade$city_name = toupper(rain_decade$city_name)
+
+merge <- inner_join(most_affected_areas, most_affected_areas_temp, by=c("year", "city_name"))
+
+merge %>%
+  group_by(year, city_name)%>%
+  filter(year >=2016 , year < 2020) %>%
+  ggplot(aes(x=year, y=avg_temp, fill=city_name))+
+  geom_bar(position="dodge", stat="identity")+
+  geom_point(aes(colour = avg_rain,size=avg_rain), position = "jitter")+
+  ggtitle("Cities in Fire zone")+
+  scale_color_gradient2(low = "blue", mid = "red", high = "black", midpoint = mean(merge$avg_rain, na.rm = TRUE), name="rain")
+
+```
+
+The above bar graphs plots the cities (Brisbane, Perth and Sydney) which are most impacted by climate change. It shows us the rainfall and temperature trend for these cities from year 2016-2019. We have selected these cities using previous analysis and statistics.
+From the rainfall graph It can be observed that there is a decrease in average rainfall for Brisbane and Sydney linearly after 2016. Although average rainfall in Perth remained stable up to 2018, then declined in 2019.
+
+On the other hand, if we consider average temperature it shows no much variation from 2016-2018 in all 3 cities but a big spike in temperature can be observed from 2018-2019. Brisbane and Sydney recording  average temperature of 26 ⁰C and 24 ⁰C respectively while perth remained around 22 ⁰C.
+
+### **Conclusion**
+
+From the above graphs, we see that in the last 4 years, the Sydney is the most affected by bush fires as compared to other affected cities because there is an increase in temperature and decrease in rainfall density spontaneously with each increasing year.
+
+### Where has the major fire incidents happening in Australia?
+
+```{r}
+
+aus_fires <- sf::st_read("major_Incidents.json")
+
+mapview(aus_fires,lwd = 6, color = "orange",alpha.regions = 0.50)
+
+```
+
+### **Conclusion**
+
+The above map gives us an idea about the recent Bush fire incidents that happened across Australia in 2020. From this we can observe that major fire incidents are localized in NSW and Sydney is the most affected area within NSW. It is a kind of alert which helps to keep us away from recent Bushfire locations.
+
+
+### What are the Australian Fire Boundaries?
+
+```{r}
+
+nasa_fire<-st_as_sf(anz_nasa_fire,coords = c("longitude","latitude")) %>% 
+  st_set_crs(4326) %>% 
+  arrange(desc(frp)) %>% 
+  head(2000)
+
+# Plot showing most dangerous fires
+
+mapview(nasa_fire,zcol="frp")
+
+
+```
+
+
+### What is FRP?
+
+FRP is termed as Fire Radiative power. It Is defined as the rate of radiative energy emitted by the fire at the time of the observation. it is measured in the unit of Megawatt (MW).
+The Burned Area is expressed in units of area such as km2.
+
+### **Conclusion**
+
+The above map, gives us an insight of Bushfire boundaries and its intensity in last 2 years across various parts of Australia. It has considered various factors other than temperature and Rainfall for the analysis. In this Latitude and longitude are used to point markers on the map which points to various locations where Bushfire has occurred in last 2 years. Brightness , confidence and FRP are used in this to analyze the intensity of the Bush fire in these locations. FRP is one of the key factors which determines the impact and range of Bushfire in certain location. Locations with high FRP can be declared under Bushfire boundaries.
+
+
+**# PREDICTIVE ANALYSIS**
+
+**Why Australia is on Fire? **
+
+Fire is related to the high temperature and less rainfall in any region. Here, we discuss our question that deals with the prediction of rain, temperature and Fire radiative power of the regions. Also, through this analysis, we try to predict the Fire temperature that occurs in various regions across Australia.
+
+
+##Let’s analyse the rainfall in each city for each year in a decade (2010-2019)
+
+
+For this we first choose the dataset:
+
+```{r}
+
+rain_temp_pred_model <- inner_join(rain_decade, temp_decade, by=c("year", "city_name"))
+
+```
+
+
+First we go with the linear model equation to predict the rainfall pattern in different years and months. The equation is as below:
+
+`rainfall ~ month + year`
+
+#### lets split the dataset (Preprocessing step)
+
+```{r}
+
+rain_split <- initial_split(rainfall)
+
+rain_training <- training(rain_split)
+rain_testing <- testing(rain_split)
+
+
+```
+
+
+### setup recipe
+
+```{r}
+
+# we analyse the rainfall pattern from 2010-2019
+
+rain_training <- rain_training %>%
+  filter(year >=2010, year<2020) 
+
+rain_train_dec<-rain_training%>%
+  group_by(city_name, year) %>%
+  summarise(total_rain = sum(rainfall, na.rm = TRUE),.groups='drop')
+
+rain_recipe <- recipe(rainfall~year+month+city_name, data=rain_training)
+
+prep_rain <- prep(rain_recipe, data = rain_training)
+
+rain_bake <- bake(prep_rain, rain_training)
+
+
+ggplot(rain_bake, aes(x=year,y = rainfall, color=city_name, fill=city_name))+
+  geom_bar(positon="dodge", stat="identity")+
+  scale_x_continuous(name="Years", breaks = seq(2010, 2019,1))
+
+
+rain_bake %>%
+  group_by(year, city_name) %>%
+  summarise(total = sum(rainfall,na.rm=TRUE),.groups='drop')
+
+```
+
+From the above graph, we can say that rainfall range is decreasing at a very high speed. As per the graph, in 2010, Brisbane receives a good amount of rainfall whereas in 2019, the rainfall range decreases very sharply to below 2000. Also, Sydney is following the same pattern as rainfall range there is less than 1000 for the whole decade.
+
+
+## Let's have a look at the temperature pattern of each year.
+
+
+The temperature pattern of each city also plays a vital role in determining the fire intensity. The temperature pattern in each city is calculated by measuring the dependency on year. It is as shown below graph:
+
+Here, we design the linear model equation to predict the temperature pattern in different years and months. The equation is as below:
+
+`temperature ~ year`
+
+#### lets split the dataset (Preprocessing step)
+
+```{r}
+
+temp_split <- initial_split(temperature)
+
+temp_training <- training(temp_split)
+temp_testing <- testing(temp_split)
+
+```
+
+
+### setup recipe
+
+The temperature pattern in each city is calculated by measuring the dependency on year. It is as shown in the below graph:
+
+```{r}
+
+# we analyse the temperature pattern from 2010-2019
+
+temp_training <- temp_training %>%
+  filter(year >=2010, year<2020) 
+
+temp_train_dec<-temp_training%>%
+  group_by(city_name, year) %>%
+  summarise(total_temp = sum(temperature, na.rm = TRUE),.groups='drop')
+
+temp_recipe <- recipe(temperature~year+month+city_name, data=temp_training)
+
+prep_temp <- prep(temp_recipe, data = temp_training)
+
+temp_bake <- bake(prep_temp, temp_training)
+
+temp_final <- temp_bake %>%
+  group_by(year, city_name) %>%
+  summarise(mean_temp = mean(temperature, na.rm=TRUE),.groups='drop')
+
+ temp_final%>%
+   ggplot(aes(x = year, y=mean_temp, color=city_name))+
+   geom_point()+
+   geom_smooth(method=lm, se=FALSE)+
+   scale_x_continuous(name = "year", breaks = seq(2010, 2019, 1))+
+   scale_y_continuous(name="Temperature in degree celsius")+
+   ggtitle("Temperature pattern of different cities in Australia")
+  
+  
+```
+
+
+The above graph depicts the temperature range of each city. The temperature in Brisbane and Sydney is rising at a very high scale. As it is evident from the graph, Brisbane is recording the maximum temperature.
+
+
+
+### Analysing the Fire Radiative power that has been recorded in city.
+
+### Percentage of fire 
+
+For this analysis, we have used the linear modelling equation where frp (fire radiative power) is dependent on confidence and brightness.
+
+Lets understand what are these terms - `confidence` and `brightness`.
+
+**Confidence** - It is defined as the value that helps the user to gauge the quality of the individual hot spots. It ranges from 0% - 100%. It is assigned to fire classes namely low-confidence fire, nominal-confidence fire and high-confidence fire. 
+**For ex** – The region with ‘0’ confidence value is in the safest zone, region with confidence value of ‘50’ is in nominal zone and must be taken care of the fire. Whereas, the region with ‘100’ confidence value falls in most dangerous site and more prone to fire.
+
+
+**Brightness** - It is termed as the brightness temperature emitted and recorded for the fire site. It depicts the intensity of fire and its impact on the region. More the brightness, more will be fire intensity in the region.
+
+
+Below is our equation and predictive analysis part that describes the fire probability in different regions:
+
+
+`frp ~ confidence+brightness`
+
+## Modelling
+
+```{r}
+fire_split <- initial_split(anz_nasa_fire)
+
+fire_train <-training(fire_split)
+
+fire_test <- testing(fire_split)
+
+```
+
+
+
+### equation
+
+```{r}
+
+lm(frp~confidence + brightness, data = anz_nasa_fire)
+
+fire_recipe <- recipe(frp~confidence + brightness, data=fire_train)
+
+prep_fire <- prep(fire_recipe, data = fire_train)
+
+fire_bake <- bake(prep_fire, fire_train)
+
+ fire_bake%>%
+   ggplot(aes(x = confidence, y=frp, color=brightness))+
+   geom_point()+
+   geom_smooth(method=lm, se=FALSE)+
+   scale_x_continuous(name = "Confidence level")+
+   scale_y_continuous(name="Fire Radiative Power")+
+   ggtitle("Fire probability")
+
+ 
+```
+
+
+The above graph shows the frp increases as the confidence level & brightness increases.  The point chart depicts the brightness level which is plotted against each increasing unit of frp. From the graph, it is evident that frp is greater when confidence level is maximum i.e., region is in high confidence fire region. 
+
+
+
+### Predicting Fire intensity in regions
+
+Now, let’s have a look at the predictive part of brightness in each region. The brightness or fire intensity in each region will help us to determine the more dangerous zone and how can we prepare ourselves from the accident. 
+
+The below modelling part will depict the brightness on the basis of geographic dimension i.e., latitude and longitude and frp recorded for that region.
+
+
+
+#### equation
+
+The equation is as follows
+
+`brightness ~ latitude+longitude+frp`
+
+
+```{r}
+
+#specifying the model
+
+lm_spec <- linear_reg() %>%
+  set_engine(engine = "lm")
+
+
+#Fitting the model
+
+lm_fit <- lm_spec %>%
+  fit(brightness ~ latitude+longitude+frp, data = fire_train)
+
+
+# Evaluating model
+
+result_train <- lm_fit %>%
+  predict(new_data = fire_train) %>%
+  mutate(brightness = fire_train$brightness, year= fire_train$year, lat = fire_train$latitude, long = fire_train$longitude)
+
+
+knitr::kable(result_train, align = "c", caption = "Fire Intensity", "simple")
+
+```
+
+
+The table above evaluates the maximum predicted brightness emitted by each geographical location in given year. (2019 & 2020).
+
+
+After comparing and analysing, the results derived from predictive models, we can say that Australia’s Fire rate is increasing rapidly due to decrease in rainfall and increase in temperature. The cities are emitting more fire pixels which has been a concern from years. Hence, the fire is getting maximum in Australia.
+
+### Stage 3 dataset containing the predicted value of brightness for year 2019 - 2020
+
+```{r}
+write_csv(result_train, "final_dataset.csv")
+
+```
+
+# CONCLUSION
+
+It can be concluded from descriptive analysis that the change in climate has led to a longer fire season, high temperatures, drier vegetation which is becoming “fuel” for the fire and increased chance of lightning. We also saw that in last decade, there is huge change in climatic conditions such as temperature and rainfall and with each passing year, an increase in temperature and decrease in rainfall can be observed. 
+
+Also, it is evident from predictive analysis that, the hotter weather conditions are increasing the chances of longer fire seasons, more heatwaves are experienced and increasing frp (fire radiative power). Also, the fire intensity (brightness) has degraded the vegetation which a harm to the soil and fire risk will increase. 
+
+
+# BIBLIOGRAPHY
+
+The concepts used in this project are studied from BCO6007 tutorial and lecture slides. Apart from that, below mentioned websites and resources has been referred.
+
++ Barter, R. (2019). Using the recipes package for easy pre-processing. [online] (www.rebeccabarter.com. Available at: http://www.rebeccabarter.com/blog/2019-06-06_pre_processing/) [Accessed 13 Oct. 2020].
+
+
++ GitHub. (n.d.). rfordatascience/tidytuesday. [online] Available at: https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-01-07/readme.md [Accessed 13 Oct. 2020].
+
+
++ r-spatial.github.io. (n.d.). Interactive Viewing of Spatial Data in R. [online] Available at: https://r-spatial.github.io/mapview/ [Accessed 13 Oct. 2020].
+
+
++ Silge, J. (2020). Data preprocessing and resampling using tidymodels. YouTube. Available at: https://www.youtube.com/watch?v=s3TkvZM60iU [Accessed 13 Oct. 2020].
+
++ Silge, M.K. and J. (n.d.). Tidy Modeling with R. [online] www.tmwr.org. Available at: https://www.tmwr.org/ [Accessed 13 Oct. 2020]
+
++ Stack Overflow. (n.d.). Frequent “ggplot2” Questions. [online] Available at: https://stackoverflow.com/questions/tagged/ggplot2?sort=faq [Accessed 13 Oct. 2020]
+
+
+# REFERENCES TO THE DATASET
+
+
+[LINK] (https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-01-07/readme.md)
+
+# LIST OF PACKAGES USED
+
++ tidyverse
++ ggplot2
++ maps
++ lubridate
++ mapview
++ sf
++ scales
++ RColorBrewer
++ viridis
++ tidymodels
+
