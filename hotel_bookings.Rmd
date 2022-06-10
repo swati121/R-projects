@@ -1,17 +1,8 @@
 ---
-title: "*Swati Gupta*"
+title: "*Swati Gupta* - hotel bookings"
 output: html_document
 ---
 
-## **s4639851** 
-
----
-
-# Assignment 1
-
----
-
-![](Swati.jpg){width=180px}
 
 ```{r setup, include = FALSE}
 library(ggplot2)
