@@ -1,11 +1,10 @@
 ---
 title: "Australian Fires"
-author: "Group 4"
+author: "Swati Gupta"
 date: "9/26/2020"
 output: html_document
 ---
 
-![](australian_fires.jpg)
 
 
 # EXECUTIVE SUMMARY
