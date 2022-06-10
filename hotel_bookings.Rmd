@@ -1,0 +1,182 @@
+---
+title: "*Swati Gupta*"
+output: html_document
+---
+
+## **s4639851** 
+
+---
+
+# Assignment 1
+
+---
+
+![](Swati.jpg){width=180px}
+
+```{r setup, include = FALSE}
+library(ggplot2)
+library(tidyverse)
+install.packages("kableExtra")
+library(kableExtra)
+
+hotel_bookings<-read_csv("hotel_bookings.csv")
+
+```
+
+### Part 2 - Data Wrangling and Visualization
+
+### 1. Display the first 10 rows of the dataset using RMarkdown (1 marks)
+
+```{r}
+library(knitr)
+
+knitr::kable(hotel_bookings[1:10, ], align = "c",
+             caption = "Hotel_bookings (First 10 rows)", "simple")
+
+```
+
+### 2. Generate the general statistics of the dataset using summary() function (1 mark).
+
+```{r}
+summary(hotel_bookings)
+```
+
+### 3. What is the number of booking requests for each type of hotels in every country in the dataset? Display the largest 10 (5 marks)
+
+```{r}
+country_data<-hotel_bookings %>%
+  group_by(country, hotel) %>%
+  count(country, reservation_status) %>%
+  summarise(total = sum(n),.groups='drop') 
+
+Dataset <- country_data %>%
+  arrange(desc(total))%>%
+  head(10)
+
+knitr::kable(Dataset, align = "c",
+             caption = "Largest 10 hotel booking", "simple")
+
+```
+
+### 4. Create a bar chart that shows the number booking requests per each type of hotel, not country specific (i.e. just City and Resort).  The chart should have a custom title and custom labelled axes. Include a legend. (10 marks)
+
+```{r}
+ggplot(hotel_bookings)+
+  geom_bar(mapping=aes(x = hotel, fill = hotel))+
+  labs(title = "Bar Chart - Number of booking request per hotel",
+         x = "Hotel Type", y= "Total no. of bookings")
+
+```
+
+### 5. Create a bar chart that shows the number of booking requests per each type of hotel in top 10 countries (by number of booking). Use faceting to show charts for each country next to each other in one graph).  The chart should have a custom title and custom labelled axes. Include a legend. (10 marks)
+
+```{r}
+new_dataset <- country_data %>%
+  group_by(country)%>%
+  summarise(final = sum(total),.groups='drop')%>%
+  arrange(desc(final))%>%
+  head(10)
+dataset2 <- merge(new_dataset, country_data, by = "country")
+
+ggplot(dataset2, aes(fill=hotel, y=total, x=country)) + 
+  geom_bar(position="dodge", stat="identity")+
+  facet_wrap(~country, nrow=2, scales = "free_x")+
+  labs(title = "Chart - Number of booking request per hotel in top 10 countries",
+         x = "Country", y= "Total no. of bookings")
+
+```
+
+
+### 6. What is the number of cancellations per each year for Resort Hotel? Present as a table (5 marks)
+```{r}
+knitr::kable(hotel_bookings %>%
+  filter(hotel == "Resort Hotel", is_canceled == 1)%>%
+  group_by(arrival_date_year)%>%
+  count(is_canceled), align="c", caption = "Number of cancellations per year in Resort Hotel", "simple")
+
+
+```
+
+
+
+### 7. What is the average number of lead time for each type of hotel for every year? (5 marks)
+
+```{r}
+knitr::kable(hotel_bookings %>%
+  group_by(hotel, arrival_date_year)%>%
+  summarise(Average_lead_time = mean(lead_time),.groups='drop'), align="c", caption="Average lead time per hotel per year", "simple")
+```
+
+
+### 8. Present the above information as a horizontal bar chart with each type of hotel next to each other. The chart should have a custom title and custom labelled axes. Include a legend. (5 marks)
+
+```{r}
+
+Lead_time_hotel <- hotel_bookings %>%
+  group_by(hotel, arrival_date_year)%>%
+  summarise(Average_lead_time = mean(lead_time),.groups='drop')
+
+ggplot(Lead_time_hotel, aes(fill=hotel, y=Average_lead_time, x=arrival_date_year)) + 
+  geom_bar(position="dodge", stat="identity")+
+  coord_flip()+
+  labs(title="Average lead time per hotel per year", x= "Year", y="Average Lead time")
+
+
+```
+
+
+### 9. Add a column to the dataset with the average daily rate for each type of hotel in each country for each market segment. Display the top 15 most expensive as a table. (10 marks)
+
+```{r}
+
+Hotel<-hotel_bookings %>%
+  group_by(hotel, country, market_segment) %>%
+  mutate(average_daily_rate=mean(adr, na.rm=TRUE))
+
+Expensive_hotel <- hotel_bookings %>%
+  group_by(hotel, country, market_segment) %>%
+  summarise(Average_daily_rate=mean(adr, na.rm = TRUE),.groups='drop')
+
+knitr::kable(Expensive_hotel %>%
+  arrange(desc(Average_daily_rate))%>%
+  head(15), align="c", caption="Top 15 most expensive hotel per country per segment", "simple")
+
+```
+
+
+
+### 10. Create a line chart with the 20 most expensive locations for City Hotel. The chart should have a custom title and custom labelled axes. Include a legend. (5 marks)
+
+```{r}
+
+
+City_hotel_expense<-hotel_bookings %>%
+  filter(hotel=="City Hotel")%>%
+  group_by(country, hotel)%>%
+  distinct(country,adr)%>%
+  slice_max(adr)%>%
+  arrange(desc(adr))%>%
+  head(20)
+
+ggplot(City_hotel_expense, aes(x=country, y=adr, group=1))+
+  geom_line(aes(y=adr, color="ADR"), size=1)+
+  geom_point()+
+  labs(title = "Top 20 most expensive locations of City Hotel", x="Country", y="Average Daily Rate")+
+  scale_color_manual(name = "City Hotel", values=c("red"))+
+  theme(legend.position = c(0.5, 0.5))
+
+
+```
+
+
+### 11. Based on the updated dataset create a new dataset that includes only hotel type, country, newly calculated daily rate. Save the modified dataset (in step 9) as well as the new dataset a file called modifieddata.csv and newdata.csv (3 marks)
+
+```{r}
+newdata<-Hotel[,c("hotel", "country", "average_daily_rate")]
+
+
+write_csv(newdata, path= 'newdata.csv')
+
+write_csv(Hotel, path= 'modifieddata.csv')
+
+```
